@@ -834,29 +834,31 @@ where
     }
 }
 
+fn arbitrary_str<'a>(u: &mut Unstructured<'a>, len: usize) -> Result<&'a str> {
+    match str::from_utf8(u.peek_bytes(size).unwrap()) {
+        Ok(s) => {
+            u.bytes(size).unwrap();
+            Ok(s)
+        }
+        Err(e) => {
+            let i = e.valid_up_to();
+            let valid = u.bytes(i).unwrap();
+            let s = unsafe {
+                debug_assert!(str::from_utf8(valid).is_ok());
+                str::from_utf8_unchecked(valid)
+            };
+            Ok(s)
+        }
+    }
+}
+
 impl<'a> Arbitrary<'a> for &'a str {
     fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
-        let size = u.arbitrary_len::<u8>()?;
-        match str::from_utf8(u.peek_bytes(size).unwrap()) {
-            Ok(s) => {
-                u.bytes(size).unwrap();
-                Ok(s)
-            }
-            Err(e) => {
-                let i = e.valid_up_to();
-                let valid = u.bytes(i).unwrap();
-                let s = unsafe {
-                    debug_assert!(str::from_utf8(valid).is_ok());
-                    str::from_utf8_unchecked(valid)
-                };
-                Ok(s)
-            }
-        }
+        arbitrary_str(u, u.arbitrary_len::<u8>() as usize)
     }
 
     fn arbitrary_take_rest(u: Unstructured<'a>) -> Result<Self> {
-        let bytes = u.take_rest();
-        str::from_utf8(bytes).map_err(|_| Error::IncorrectFormat)
+        arbitrary_str(u, u.len())
     }
 
     #[inline]
